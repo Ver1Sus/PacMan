@@ -10,6 +10,9 @@ void ofApp::setup(){
 	
 	showInfo		= TRUE;//	FALSE; //----Сначала отключаем вывод инфы при движении
 	changeMapMode	= TRUE;//	FALSE; // ---Выключен мод редактирования карты
+	
+	gameSpeed	=  2; //----Количество движений в секунду.
+	pacMan.direction = 3; //----Изначальное движение
 
 	 /*
 	//Заполням карту нулями
@@ -41,7 +44,15 @@ void ofApp::setup(){
 	openMap.close();
 
 	//------------PACMAN	
-	pacMan.pacManImage.loadImage("..\\..\\data\\pacman.png");
+	//---Общая картинка
+	pacMan.pacManImage.loadImage("..\\..\\data\\pacmanSprite.png");
+	//--кусок с открытым ртом
+	pacMan.pacManImageOpen.cropFrom(pacMan.pacManImage, 0, 0, 512, 512);
+	//--кусок с закрытым ртом
+	pacMan.pacManImageClose.cropFrom(pacMan.pacManImage, 512, 0, 512, 512);
+	changeStatusMouth();
+	//pacMan.statusMouth = 1; //--сначала открыт рот
+	
 	pacMan.score = 0;
 	
 	//-----------Подсчет количества плюшек
@@ -75,7 +86,7 @@ void ofApp::draw(){
 		for (int j = 0; j < 32; j++){
 			//---------Бэкграунд, если номер = 0
 			ofSetColor(ofColor::blueViolet);
-			ofRect(i * sizePixel, j * sizePixel, sizePixel, sizePixel);
+			ofRect(i * sizePixel, j * PIXEL_SIZE, sizePixel, sizePixel);
 
 			//----Рисуем стену, если 1
 			if (field[i][j] == '1'){				
@@ -121,6 +132,24 @@ void ofApp::draw(){
 	showChangeMap();
 
 
+	//-------------------------Время и шаг движения
+	//--Отчетное время для движения пакмана
+	int time = ofGetElapsedTimeMillis();	
+
+	if(time > (1000/gameSpeed)){
+		switch (pacMan.direction){
+		case 0: moveUp(); break;
+		case 1: moveLeft(); break;
+		case 2: moveDown(); break;
+		case 3: moveRight(); break;	
+			
+		}
+
+		//---Сброс счетчика времени и новый отсчет
+		ofResetElapsedTimeCounter();
+	}
+
+
 	//------WE HAVE A WINNER!!!!
 	if(pacMan.score == scoreCount){
 		ofSetColor(ofColor::black);
@@ -141,24 +170,44 @@ void ofApp::keyPressed(int key){
 	//добавить разворот изображения пакмена
 	//сделать каждую кнопку движения - функцией для удобной модификации
 
-	//-------Двжение пакмена по нажатию
-	//---ВПРАВО
-	if(key == 'd'){
-		moveRight();
-	}
+	//-------Смена направления пакмена по нажатию
+	//--------И смена направления изображения
+	//**********************************************************************************
+	//*****Изменить смену изображения, чтобы менять не отделно открытый и закрытый
+			// а только pacManImage
+
 	//---ВВЕРХ
-	if(key == 'w'){
-		moveUp();
+	if(key == 'w'){		
+		if(pacMan.direction==1) pacMan.pacManImageOpen.rotate90(45); 
+		if(pacMan.direction==2) pacMan.pacManImageOpen.rotate90(90);
+		if(pacMan.direction==3) pacMan.pacManImageOpen.rotate90(-45);
+		pacMan.direction = 0;
+		
 	}
 	//---ВЛЕВО
 	if(key == 'a'){
-		moveLeft();
+		if(pacMan.direction==0) pacMan.pacManImageOpen.rotate90(-45); 
+		if(pacMan.direction==2) pacMan.pacManImageOpen.rotate90(45);
+		if(pacMan.direction==3) pacMan.pacManImageOpen.rotate90(90);
+		pacMan.direction = 1;
+		
 	}
 	//---ВНИЗ
 	if(key == 's'){
-		moveDown();
+		if(pacMan.direction==0) pacMan.pacManImageOpen.rotate90(90); 
+		if(pacMan.direction==1) pacMan.pacManImageOpen.rotate90(-45);
+		if(pacMan.direction==3) pacMan.pacManImageOpen.rotate90(45);
+		pacMan.direction = 2;
+		
 	}
-
+	//---ВПРАВО
+	if(key == 'd'){
+		if(pacMan.direction==0) pacMan.pacManImageOpen.rotate90(45); 
+		if(pacMan.direction==1) pacMan.pacManImageOpen.rotate90(90);
+		if(pacMan.direction==2) pacMan.pacManImageOpen.rotate90(-45);
+		pacMan.direction = 3;
+		//moveRight();
+	}
 
 	//-----Переключить - показывать ли инфу при движении
 	if (key == 'i'){
@@ -189,14 +238,6 @@ void ofApp::keyPressed(int key){
 		setup();
 	}
 
-	if (key == 'e'){
-		pacMan.pacManImage.crop(512, 0, 512, 512);
-		pacMan.pacManImage.draw(
-	}
-	if (key == 't'){
-		
-		pacMan.pacManImage.crop(0, 0, 512, 512);
-	}
 
 	//---------Идентично нажатию Ctrl + S
 	//-------Пересохранить карту в файл
@@ -315,6 +356,9 @@ if (changeMapMode){
 
 //---------------------Движение Пакмена вправо
 void ofApp::moveRight(){
+	//--Изменить изображение рта
+	changeStatusMouth();
+
 	int x = pacMan.x;
 	int y = pacMan.y;
 		
@@ -341,6 +385,8 @@ void ofApp::moveRight(){
 
 //-----------Движение Пакмена вверх
 void ofApp::moveUp(){
+	changeStatusMouth();
+
 	int x = pacMan.x;
 	int y = pacMan.y;
 
@@ -368,6 +414,8 @@ void ofApp::moveUp(){
 
 //-----------Движение Пакмена влево
 void ofApp::moveLeft(){
+	changeStatusMouth();
+
 	int x = pacMan.x;
 	int y = pacMan.y;
 
@@ -395,6 +443,8 @@ void ofApp::moveLeft(){
 
 //-----------Движение Пакмена вниз
 void ofApp::moveDown(){
+	changeStatusMouth();
+
 	int x = pacMan.x;
 	int y = pacMan.y;
 
@@ -436,4 +486,18 @@ void ofApp::moveDown(){
 		
 	//-----показать значение элементов вокруг пакмена
 	else ofApp::showAround(x, y);
+}
+
+//-----Изменить статус рта пакмена
+void ofApp::changeStatusMouth(){
+	//--если рот открыт - закрыть
+	if (pacMan.statusMouth == 1){
+		pacMan.statusMouth = 0;
+		pacMan.pacManImage.clone(pacMan.pacManImageClose);
+	}
+	else {
+		pacMan.statusMouth = 1;
+		pacMan.pacManImage.clone(pacMan.pacManImageOpen);
+	}
+
 }

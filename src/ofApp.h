@@ -1,6 +1,8 @@
 #pragma once
-
 #include "ofMain.h"
+
+#define PIXEL_SIZE 32
+
 
 class Pacman{
 public:
@@ -9,8 +11,15 @@ public:
 	};
 
 	ofImage pacManImage;
+	
+	//----Открытый и закрытый рот пакмена
+	ofImage pacManImageOpen, pacManImageClose;
+	bool statusMouth;
+
 	//--положение
 	float x, y;
+	//--Направление пакмена WASD(0123)
+	short int direction;
 
 	int score;
 
@@ -54,13 +63,20 @@ class ofApp : public ofBaseApp{
 		void moveLeft();
 		void moveDown();
 
+		void changeStatusMouth();
+
+
 		int field[64][64];
 		int scoreCount;
 
 		int sizePixel;
 
+		int gameSpeed; //---Количество ходов в секунду. С повышением уровня можно увеличиаь скорость
+
 		bool showInfo;
 		bool changeMapMode;
+
+
 
 		ofstream saveMap;
 		ifstream openMap;
