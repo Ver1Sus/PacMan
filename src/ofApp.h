@@ -17,12 +17,30 @@ public:
 	bool statusMouth;
 
 	//--положение
-	float x, y;
+	int x, y;
 	//--Направление пакмена WASD(0123)
 	short int direction;
 
 	int score;
 
+	int lives;
+
+};
+
+class Ghost{
+public:
+	Ghost(){
+	}
+
+	void changeDirection();
+
+	ofImage ghostImage;
+
+	int x, y;
+
+	short int direction;
+
+	bool scoreOnWay;
 
 };
 
@@ -65,14 +83,22 @@ class ofApp : public ofBaseApp{
 
 		void changeStatusMouth();
 
+		void loadMapToField();
+
+		void showHighScore();
+
+		void resetMapToZero();
+
+		void gameOver();
 
 		int field[64][64];
 		int scoreCount;
-
-		int sizePixel;
+		int scoreInGame;
+		int highscore;
+		
 
 		int gameSpeed; //---Количество ходов в секунду. С повышением уровня можно увеличиаь скорость
-
+		
 		bool showInfo;
 		bool changeMapMode;
 
@@ -83,5 +109,14 @@ class ofApp : public ofBaseApp{
 
 		Pacman pacMan;
 		vector<ScorePoint*> scorePoint;
+
+		Ghost ghost1;
+
+		void ghostMoveRight();
+		void ghostMoveUp();
+		void ghostMoveLeft();
+		void ghostMoveDown();
+
+		void ghostChangeDirection(int x, int y);
 
 };

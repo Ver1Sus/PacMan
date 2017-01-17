@@ -8,40 +8,21 @@ void ofApp::setup(){
 		"Ctrl + S to save changed map. " << endl << \
 		" " << endl;
 	
-	showInfo		= TRUE;//	FALSE; //----Сначала отключаем вывод инфы при движении
-	changeMapMode	= TRUE;//	FALSE; // ---Выключен мод редактирования карты
+	showInfo		= FALSE; //----Сначала отключаем вывод инфы при движении
+	changeMapMode	= FALSE; // ---Выключен мод редактирования карты
 	
-	gameSpeed	=  2; //----Количество движений в секунду.
+	ghost1.scoreOnWay = FALSE;
+	ghost1.direction  = 3;
+
+	gameSpeed		=  3; //----Количество движений в секунду.
 	pacMan.direction = 3; //----Изначальное движение
+	pacMan.score	=  0; //---Изначальное количество очков
+	pacMan.lives	=  3; //--Изначальное количество жизней
 
-	 /*
-	//Заполням карту нулями
-	saveMap.open("map.txt");
-	for (int i = 0; i < 32; i++){
-		for (int j = 0; j < 32; j++){
-			//записываем в файл
-			saveMap  << "0";
-		}
-		saveMap << endl;
-	}
-	cout << "Map saved!" << endl;
-	saveMap.close();
-	*/
 
-	//--------загрузить карту в массив field
-	openMap.open("map.txt");
-	for (int i = 0; i < 64; i++){
-		std::string line;
-			getline(openMap, line);
-				
-				
-			for (int j = 0; j < 64; j++){
-				field[i][j] = line[j];
-			//cout << line[j];
-		}
-			//cout << endl;
-	}
-	openMap.close();
+
+
+	loadMapToField(); //--------загрузить карту в массив field
 
 	//------------PACMAN	
 	//---Общая картинка
@@ -51,9 +32,7 @@ void ofApp::setup(){
 	//--кусок с закрытым ртом
 	pacMan.pacManImageClose.cropFrom(pacMan.pacManImage, 512, 0, 512, 512);
 	changeStatusMouth();
-	//pacMan.statusMouth = 1; //--сначала открыт рот
 	
-	pacMan.score = 0;
 	
 	//-----------Подсчет количества плюшек
 	scoreCount = 0;
@@ -64,7 +43,11 @@ void ofApp::setup(){
 			}
 		}
 	}
-	
+	scoreInGame = scoreCount;
+
+	//---Приведение
+	ghost1.ghostImage.loadImage("..\\..\\data\\ghost1.png");
+
 }
 
 //--------------------------------------------------------------
@@ -80,18 +63,18 @@ void ofApp::draw(){
 	//-----------Нарисовать карту каждый кадр
 	//----проверяем каждый элемент карты
 
-	sizePixel = 32;		//--- размер "пикселя"
+	PIXEL_SIZE;	//--- размер "пикселя"
 	int scoreNumber = 0;	//--- отображаем каждую плюшку, даем ей свой id
 	for (int i = 0; i < 32; i++){
 		for (int j = 0; j < 32; j++){
 			//---------Бэкграунд, если номер = 0
 			ofSetColor(ofColor::blueViolet);
-			ofRect(i * sizePixel, j * PIXEL_SIZE, sizePixel, sizePixel);
+			ofRect(i * PIXEL_SIZE, j * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
 
 			//----Рисуем стену, если 1
 			if (field[i][j] == '1'){				
 				ofSetColor(ofColor::black);
-				ofRect(i * sizePixel, j * sizePixel, sizePixel, sizePixel);
+				ofRect(i * PIXEL_SIZE, j * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
 			}
 			//---Положение плюшки
 			if (field[i][j] == '2'){
@@ -100,14 +83,19 @@ void ofApp::draw(){
 				scorePoint[scoreNumber] -> position.x = i;
 				scorePoint[scoreNumber] -> position.y = j;
 				scoreNumber++;
-				ofRect(i * sizePixel + sizePixel/4, j * sizePixel + sizePixel/4,\
-						sizePixel/2, sizePixel/2);
+				ofRect(i * PIXEL_SIZE + PIXEL_SIZE/4, j * PIXEL_SIZE + PIXEL_SIZE/4,\
+						PIXEL_SIZE/2, PIXEL_SIZE/2);
 			}
 			//------получаем положение пакмена
 			if (field[i][j] == '3'){
 				pacMan.x = i;
 				pacMan.y = j;
 			}			
+			//-----Положение привидения
+			if (field[i][j] == '4'){
+				ghost1.x = i;
+				ghost1.y = j;
+			}
 		}
 	}
 	
@@ -118,16 +106,24 @@ void ofApp::draw(){
 	ofDrawBitmapString("SCORE:", 1030, 50);
 	ofDrawBitmapString(ofToString(pacMan.score), 1080, 50);
 
+	//----Отобразить максимальное количество очков, и перезаписать, если набранных больше
+	showHighScore();
 
+	ofSetColor(ofColor::black);
+	ofDrawBitmapString("LIVES:", 1030, 120);
+	ofDrawBitmapString(ofToString(pacMan.lives), 1080, 120);
 
 
 	//----Положение Пакмена
 	ofSetColor(255);
-	pacMan.pacManImage.draw(pacMan.x * sizePixel, pacMan.y * sizePixel, sizePixel, sizePixel);
+	pacMan.pacManImage.draw(pacMan.x * PIXEL_SIZE, pacMan.y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
 	
-	//-----------sprite use here
-	//pacMan.pacManImage.drawSubsection(130,180,40,40,0,0);
+	//---Положение призрака
+	ofSetColor(255);
+	ghost1.ghostImage.draw(ghost1.x * PIXEL_SIZE, ghost1.y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
 	
+
+
 	//------------отобразить пиксель, на который наведена мышь
 	showChangeMap();
 
@@ -137,12 +133,19 @@ void ofApp::draw(){
 	int time = ofGetElapsedTimeMillis();	
 
 	if(time > (1000/gameSpeed)){
+		//----движение пакмена
 		switch (pacMan.direction){
 		case 0: moveUp(); break;
 		case 1: moveLeft(); break;
 		case 2: moveDown(); break;
 		case 3: moveRight(); break;	
-			
+		}
+		//----движение призрака
+		switch (ghost1.direction){
+		case 0: ghostMoveUp(); break;
+		case 1: ghostMoveLeft(); break;
+		case 2: ghostMoveDown(); break;
+		case 3: ghostMoveRight(); break;	
 		}
 
 		//---Сброс счетчика времени и новый отсчет
@@ -151,14 +154,44 @@ void ofApp::draw(){
 
 
 	//------WE HAVE A WINNER!!!!
-	if(pacMan.score == scoreCount){
+	if(pacMan.score >= scoreCount){
 		ofSetColor(ofColor::black);
-		ofRect(sizePixel * 12, sizePixel * 15,\
-				sizePixel * 8, sizePixel * 2);
+		ofRect(PIXEL_SIZE * 12, PIXEL_SIZE * 15,\
+				PIXEL_SIZE * 8, PIXEL_SIZE * 2);
 		ofSetColor(ofColor::white);
 		ofDrawBitmapString("WE HAVE A WINNER!!!", 450, 530);
+
+		//---Переход на новый уровень
+		//---увеличиваем скорость, назначаем направление пакмена по дефолту, увеличиваем количество необходимых очков
+		
+		gameSpeed		+= 1;
+		pacMan.direction = 3;
+		scoreCount		+= scoreInGame;
+
+		//---обновить изображение пакмена
+		pacMan.pacManImage.loadImage("..\\..\\data\\pacmanSprite.png");
+		pacMan.pacManImageOpen.cropFrom(pacMan.pacManImage, 0, 0, 512, 512);
+		pacMan.pacManImageClose.cropFrom(pacMan.pacManImage, 512, 0, 512, 512);
+		changeStatusMouth();
+
+		//---загружаем карту с начала,
+		loadMapToField();
 	}
 
+
+	//--------------Количество жизней исчерпано
+	if (pacMan.lives == 0){
+		ofSetColor(ofColor::black);
+		ofRect(PIXEL_SIZE * 12, PIXEL_SIZE * 15,\
+				PIXEL_SIZE * 8, PIXEL_SIZE * 2);
+		ofSetColor(ofColor::red);
+		ofDrawBitmapString("GAME    OVER", 470, 510);
+		ofDrawBitmapString("Your score: ", 450, 530);
+		ofDrawBitmapString(ofToString(pacMan.score), 580, 530);
+		//-----Неизвестное направление - персонажи остановятся
+		pacMan.direction = 4;
+		ghost1.direction = 4;
+	}
 }
 
 //--------------------------------------------------------------
@@ -181,6 +214,10 @@ void ofApp::keyPressed(int key){
 		if(pacMan.direction==1) pacMan.pacManImageOpen.rotate90(45); 
 		if(pacMan.direction==2) pacMan.pacManImageOpen.rotate90(90);
 		if(pacMan.direction==3) pacMan.pacManImageOpen.rotate90(-45);
+		
+		if(pacMan.direction==1) pacMan.pacManImageClose.rotate90(45); 
+		if(pacMan.direction==2) pacMan.pacManImageClose.rotate90(90);
+		if(pacMan.direction==3) pacMan.pacManImageClose.rotate90(-45);
 		pacMan.direction = 0;
 		
 	}
@@ -189,6 +226,10 @@ void ofApp::keyPressed(int key){
 		if(pacMan.direction==0) pacMan.pacManImageOpen.rotate90(-45); 
 		if(pacMan.direction==2) pacMan.pacManImageOpen.rotate90(45);
 		if(pacMan.direction==3) pacMan.pacManImageOpen.rotate90(90);
+		
+		if(pacMan.direction==0) pacMan.pacManImageClose.rotate90(-45); 
+		if(pacMan.direction==2) pacMan.pacManImageClose.rotate90(45);
+		if(pacMan.direction==3) pacMan.pacManImageClose.rotate90(90);
 		pacMan.direction = 1;
 		
 	}
@@ -197,6 +238,10 @@ void ofApp::keyPressed(int key){
 		if(pacMan.direction==0) pacMan.pacManImageOpen.rotate90(90); 
 		if(pacMan.direction==1) pacMan.pacManImageOpen.rotate90(-45);
 		if(pacMan.direction==3) pacMan.pacManImageOpen.rotate90(45);
+		
+		if(pacMan.direction==0) pacMan.pacManImageClose.rotate90(90); 
+		if(pacMan.direction==1) pacMan.pacManImageClose.rotate90(-45);
+		if(pacMan.direction==3) pacMan.pacManImageClose.rotate90(45);
 		pacMan.direction = 2;
 		
 	}
@@ -205,6 +250,10 @@ void ofApp::keyPressed(int key){
 		if(pacMan.direction==0) pacMan.pacManImageOpen.rotate90(45); 
 		if(pacMan.direction==1) pacMan.pacManImageOpen.rotate90(90);
 		if(pacMan.direction==2) pacMan.pacManImageOpen.rotate90(-45);
+		
+		if(pacMan.direction==0) pacMan.pacManImageClose.rotate90(45); 
+		if(pacMan.direction==1) pacMan.pacManImageClose.rotate90(90);
+		if(pacMan.direction==2) pacMan.pacManImageClose.rotate90(-45);
 		pacMan.direction = 3;
 		//moveRight();
 	}
@@ -254,31 +303,38 @@ void ofApp::keyPressed(int key){
 		saveMap.close();
 		cout << "Map Saved!" << endl;
 	}
-	
+
+	//-- Изменить направление призрака
+	if (key=='i'){
+		ghost1.direction = 0;
+	}
+	if (key=='j'){
+		ghost1.direction = 1;
+	}
+	if (key=='k'){
+		ghost1.direction = 2;
+	}
+	if (key=='l'){
+		ghost1.direction = 3;
+	}
+
+
 }
 
 //--------------------------------------------------------------
-void ofApp::keyReleased(int key){
-
-}
-
+void ofApp::keyReleased(int key){}
 //--------------------------------------------------------------
-void ofApp::mouseMoved(int x, int y){
-
-}
-
+void ofApp::mouseMoved(int x, int y){}
 //--------------------------------------------------------------
-void ofApp::mouseDragged(int x, int y, int button){
-
-}
+void ofApp::mouseDragged(int x, int y, int button){}
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button){
 //----Если включен мод для изменения карты
 if (changeMapMode){
 	//----получить значения пикселя, который нужно изменить
-	int mousePosX = int(floor(mouseX/sizePixel));
-	int mousePosY = int(floor(mouseY/sizePixel));
+	int mousePosX = int(floor(mouseX/PIXEL_SIZE));
+	int mousePosY = int(floor(mouseY/PIXEL_SIZE));
 	
 	cout << mousePosX << " : " << mousePosY << endl;
 
@@ -309,29 +365,17 @@ if (changeMapMode){
 }
 
 //--------------------------------------------------------------
-void ofApp::mouseReleased(int x, int y, int button){
-
-}
-
+void ofApp::mouseReleased(int x, int y, int button){}
 //--------------------------------------------------------------
-void ofApp::windowResized(int w, int h){
-
-}
-
+void ofApp::windowResized(int w, int h){}
 //--------------------------------------------------------------
-void ofApp::gotMessage(ofMessage msg){
-
-}
-
+void ofApp::gotMessage(ofMessage msg){}
 //--------------------------------------------------------------
-void ofApp::dragEvent(ofDragInfo dragInfo){ 
-
-}
+void ofApp::dragEvent(ofDragInfo dragInfo){}
 
 
 //---------Показывает значения вокруг пакмена на карте из переменной field
 void ofApp::showAround(int x, int y){
-		
 if (showInfo){	
 	cout << x << ":" << y << endl;
 	cout << "----" << field[x][y-1]-48 << "----" << endl;
@@ -345,12 +389,12 @@ if (showInfo){
 //--------
 void ofApp::showChangeMap(){
 if (changeMapMode){
-	int mousePosX = int(floor(mouseX/sizePixel));
-	int mousePosY = int(floor(mouseY/sizePixel));
+	int mousePosX = int(floor(mouseX/PIXEL_SIZE));
+	int mousePosY = int(floor(mouseY/PIXEL_SIZE));
 
 
 	ofSetColor(180);
-	ofRect(mousePosX * sizePixel, mousePosY * sizePixel, sizePixel, sizePixel);
+	ofRect(mousePosX * PIXEL_SIZE, mousePosY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
 }
 }
 
@@ -499,5 +543,523 @@ void ofApp::changeStatusMouth(){
 		pacMan.statusMouth = 1;
 		pacMan.pacManImage.clone(pacMan.pacManImageOpen);
 	}
+
+}
+
+//--------загрузить карту в массив field
+void ofApp::loadMapToField(){
+	openMap.open("map.txt");
+	for (int i = 0; i < 64; i++){
+		std::string line;
+			getline(openMap, line);	
+			for (int j = 0; j < 64; j++){
+				field[i][j] = line[j];
+			//cout << line[j];
+		}
+			//cout << endl;
+	}
+	openMap.close();
+
+}
+
+//----Загрузка из файла макс. очков. Если набрал больше - перезапись в файл
+void ofApp::showHighScore(){
+	//----получить макс. очки
+	openMap.open("highscore.hs");
+	std::string line;
+	getline(openMap, line);
+	highscore = atoi(line.c_str()); //---перевод string to int
+	openMap.close();
+
+	if (pacMan.score >= highscore){
+		//---перезаписать, если очков больше чем макс.очков
+		highscore = pacMan.score;
+		saveMap.open("highscore.hs");
+		saveMap << highscore;
+		saveMap.close();
+	}
+	ofDrawBitmapString("HIGH \nSCORE:", 1030, 80);
+	ofDrawBitmapString(ofToString(highscore), 1080, 93);
+
+}
+
+//---Очищает карту, заполняет ее нулями
+//----ПОЛЬЗОВАТЬСЯ, ЕСЛИ НУЖНО ВСЕ СРОСИТЬ!!!
+void ofApp::resetMapToZero(){
+	//Заполням карту нулями
+	saveMap.open("map.txt");
+	for (int i = 0; i < 32; i++){
+		for (int j = 0; j < 32; j++){
+			//записываем в файл
+			saveMap  << "0";
+		}
+		saveMap << endl;
+	}
+	cout << "Map saved!" << endl;
+	saveMap.close();
+}
+
+void ofApp::gameOver(){
+	cout << "GAME OVER!!!" << endl;
+	cout << "Your score: " << pacMan.score << endl;
+	//---поставить персонажей на место
+	field[ghost1.x][ghost1.y] = '0';
+	field[14][13]		= '4'; ghost1.x = 14; ghost1.y = 13;
+	ghost1.direction	= 3;
+	
+	field[pacMan.x][pacMan.y] = '0';
+	field[14][24]		=  '3'; pacMan.x = 14; pacMan.y = 13;
+	//pacMan.direction	=  3;
+	pacMan.lives		-= 1; //----Минус 1 жизнь
+	//loadMapToField();	
+
+}
+
+
+
+
+
+//-------------------------------------------------------------GHOST
+void ofApp::ghostMoveRight(){
+	int x = ghost1.x;
+	int y = ghost1.y;
+		
+	//----перенос в начало, если край карты
+	if ((x+1 == 32)){
+		field[x][y]='0';
+		field[0][y]='4';				
+	}
+	else if (field[x+1][y] == '0'){
+		if (ghost1.scoreOnWay){
+			field[x][y]='2';
+			field[x+1][y]='4';
+		}else{
+			field[x][y]='0';
+			field[x+1][y]='4';
+		}		
+
+		ghost1.scoreOnWay = FALSE;
+		ghostChangeDirection(x+1, y);
+	}
+	else if (field[x+1][y] == '2'){
+		
+		if (ghost1.scoreOnWay){
+			field[x][y]='2';
+			field[x+1][y]='4';
+		}else{
+			field[x][y]='0';
+			field[x+1][y]='4';
+		}
+
+		ghost1.scoreOnWay = TRUE;
+		ghostChangeDirection(x+1, y);
+	}
+	else if (field[x+1][y] == '3'){
+		gameOver();
+	}
+	else{
+		ghostChangeDirection(x, y);
+	}
+
+}
+
+void ofApp::ghostMoveUp(){
+	int x = ghost1.x;
+	int y = ghost1.y;
+		
+	//----перенос в начало, если край карты
+	if (x == 0){
+		field[x][y]='0';
+		field[x][31]='4';				
+	}
+	else if (field[x][y-1] == '0'){
+		if (ghost1.scoreOnWay){
+			field[x][y]='2';
+			field[x][y-1]='4';
+		}else{
+			field[x][y]='0';
+			field[x][y-1]='4';
+		}
+
+		ghost1.scoreOnWay = FALSE;
+		ghostChangeDirection(x, y-1);
+	}
+	else if (field[x][y-1] == '2'){
+		if (ghost1.scoreOnWay){
+			field[x][y]='2';
+			field[x][y-1]='4';
+		}else{
+			field[x][y]='0';
+			field[x][y-1]='4';
+		}
+
+		ghost1.scoreOnWay =TRUE;
+		ghostChangeDirection(x, y-1);
+	}
+	else if (field[x][y-1] == '3'){
+		gameOver();
+	}else{
+		ghostChangeDirection(x, y);
+	}
+
+}
+
+void ofApp::ghostMoveLeft(){
+	int x = ghost1.x;
+	int y = ghost1.y;
+		
+	//----перенос в начало, если край карты
+	if (x == 0){
+		field[x][y]='0';
+		field[31][y]='4';				
+	}
+	else if (field[x-1][y] == '0'){
+		if (ghost1.scoreOnWay){
+			field[x][y]='2';
+			field[x-1][y]='4';
+		}else{
+			field[x][y]='0';
+			field[x-1][y]='4';	
+		}
+
+		ghost1.scoreOnWay = FALSE;
+		ghostChangeDirection(x-1, y);
+	}
+	else if (field[x-1][y] == '2'){
+		if (ghost1.scoreOnWay){
+			field[x][y]='2';
+			field[x-1][y]='4';
+		}else{
+			field[x][y]='0';
+			field[x-1][y]='4';	
+		}
+
+		ghost1.scoreOnWay = TRUE;
+		ghostChangeDirection(x-1, y);
+	}
+	else if (field[x-1][y] == '3'){
+		gameOver();
+	}
+	else{
+		ghostChangeDirection(x, y);
+	}
+
+}
+
+void ofApp::ghostMoveDown(){
+	int x = ghost1.x;
+	int y = ghost1.y;
+		
+	//----перенос в начало, если край карты
+	if ((x+1 == 32)){
+		field[x][y]='0';
+		field[x][0]='4';				
+	}
+	else if (field[x][y+1] == '0'){
+		if (ghost1.scoreOnWay){
+			field[x][y]='2';
+			field[x][y+1]='4';		
+		}else{
+			field[x][y]='0';
+			field[x][y+1]='4';		
+		}
+
+		ghost1.scoreOnWay = FALSE;
+		ghostChangeDirection(x, y+1);
+	}
+	else if (field[x][y+1] == '2'){
+		if (ghost1.scoreOnWay){
+			field[x][y]='2';
+			field[x][y+1]='4';
+		}else{
+			field[x][y]='0';
+			field[x][y+1]='4';		
+		}
+
+		ghost1.scoreOnWay = TRUE;
+		ghostChangeDirection(x, y+1);
+	}
+	else if (field[x][y+1] == '3'){
+		gameOver();
+	}else{	
+		ghostChangeDirection(x, y);
+	}
+}
+
+void ofApp::ghostChangeDirection(int x, int y){
+	//---позиции вокруг призрака
+	int up = field[x][y-1] - 48;
+	int left = field[x-1][y] - 48;
+	int down = field[x][y+1] - 48;
+	int right = field[x+1][y] - 48;
+
+	int solution = ofRandom(2);
+	//cout << solution << endl;
+	/*cout << ghost1.direction << endl;
+	
+	cout << x << ":" << y << endl;
+	cout << "----" << up << "----" << endl;
+	cout << "-" << left << "--" <<\
+		field[x][y]-48 << "--" << right << "-" << endl;
+	cout << "----" <<down << "----" << endl;
+	cout << "***********" << endl;
+	*/
+
+	//----проверять положение призрака на перекрестках
+	if (left != 1){
+		if(up != 1){
+			//--угол
+			if (right == 1 && down == 1){
+				if (x > pacMan.x){
+					if (y > pacMan.y)	ghost1.direction = 0;
+					if (y <= pacMan.y)	ghost1.direction = 1;
+				}
+				else if(y < pacMan.y){
+					ghost1.direction = 1;
+				}else{
+					switch(solution){
+					case 0: ghost1.direction = 0; break;
+					case 1: ghost1.direction = 1; break;
+					}
+				}
+			}
+			//---Перекресток UpLeftDown
+			else if(right == 1 && down != 1){
+				//---Оценить где пакмен
+				//--если левее пакмена или в линиюс
+				if(x >= pacMan.x){
+					if (y > pacMan.y)	ghost1.direction = 0;
+					if (y < pacMan.y)	ghost1.direction = 2;
+				}
+
+				//---если правее - рандомно
+				else{
+					switch(solution){
+					case 0: ghost1.direction = 0; break;
+					case 1: ghost1.direction = 2; break;
+					}
+				}
+			}
+			//---Перекресток UpLeftRight
+			else if(right != 1 && down == 1){
+				//--есди выше призрака или в лнию с ним
+				if (y >= pacMan.y){
+					if (x > pacMan.x)	ghost1.direction = 1;
+					if (x < pacMan.x)	ghost1.direction = 3;
+					//---если вертикално вверх
+					else				ghost1.direction = 0;
+				}
+				
+				else{
+					switch(solution){
+					case 0: ghost1.direction = 1; break;
+					case 1: ghost1.direction = 3; break;
+					}
+				}
+			}
+		}
+		else if(down != 1){
+			//--угол
+			if (right == 1 && up == 1){
+				if (x > pacMan.x && y > pacMan.y){
+					ghost1.direction = 1;
+				}
+				else if(y < pacMan.y){
+					ghost1.direction = 2;	
+				}else{
+				switch(solution){
+					case 0: ghost1.direction = 1; break;
+					case 1: ghost1.direction = 2; break;
+					}
+				}
+			}
+			//---Перекресток UpLeftDown
+			else if(right == 1 && up != 1){
+				//---Оценить где пакмен
+				//--если левее
+				if(x >= pacMan.x){
+					ghost1.direction = 1;
+				}
+				//---если правее - рандомно
+				else{
+					switch(solution){
+					case 0: ghost1.direction = 0; break;
+					case 1: ghost1.direction = 2; break;
+					}
+				}
+			}
+			//--перекресток LeftDownRight
+			else if(up == 1 && right != 1){
+				//--Если выше пакмена
+				if (y < pacMan.y){
+					if (x > pacMan.x)	ghost1.direction = 1;
+					if (x < pacMan.x)	ghost1.direction = 3;
+					//---если вертикално вниз
+					else				ghost1.direction = 2;
+				}
+				//----Если по горизонтальной линии с пакменом
+				else if (y = pacMan.y){
+					if (x > pacMan.x)	ghost1.direction = 1;
+					if (x < pacMan.x)	ghost1.direction = 3;
+				}
+				else{
+					switch(solution){
+					case 0: ghost1.direction = 1; break;
+					case 1: ghost1.direction = 3; break;
+					}
+
+				}
+			}
+		}
+	}
+	//--------------------------------------------------
+	else if(right != 1){
+		if (up != 1){
+			//--угол
+			if (down == 1 && left == 1){
+				if(y > pacMan.y){
+					ghost1.direction = 0;
+				}
+				else if(x < pacMan.x){
+					ghost1.direction = 3;
+				}else{
+					switch(solution){
+					case 0: ghost1.direction = 0; break;
+					case 1: ghost1.direction = 3; break;
+					}
+				}
+			}
+			//---перекресток UpDownRight
+			else if(left == 1 && down != 1){
+				//---Оценить где пакмен
+				if (x < pacMan.x){
+					//---если выше призрака
+					if (y < pacMan.y)	ghost1.direction = 2;
+					//--если ниже
+					if (y > pacMan.y)	ghost1.direction = 0;
+					//--если по горизонтальной линии
+					else				ghost1.direction = 3;
+				}
+				//---Если по вертикальной линии
+				else if (x = pacMan.x){
+					if (y > pacMan.y) ghost1.direction = 0;
+					if (y < pacMan.y) ghost1.direction = 2;
+				}
+				//---если пакмен левее
+				else{
+					switch(solution){
+					case 0: ghost1.direction = 0; break;
+					case 1: ghost1.direction = 2; break;
+					}
+				}
+			}
+		}
+		else if (down != 1){
+			//----угол
+			if (up == 1 && left == 1){
+				if (x < pacMan.x){
+					ghost1.direction = 3;
+				}
+				else if(y < pacMan.y){
+					ghost1.direction = 2;
+				}else{
+					switch(solution){
+					case 0: ghost1.direction = 2; break;
+					case 1: ghost1.direction = 3; break;
+					}
+				}
+			}
+		}
+	}
+	//-------------------------------------свободны все 4 стороны
+	if(up != 1 && down != 1 && left != 1 && right != 1) {
+		//----оценить положение пакмена
+		if (x > pacMan.x){
+			if (y > pacMan.y) {
+				switch(solution){
+				case 0: ghost1.direction = 0; break;
+				case 1: ghost1.direction = 1; break;
+				}
+			}
+			else{
+				switch(solution){
+				case 0: ghost1.direction = 1; break;
+				case 1: ghost1.direction = 2; break;
+				}
+			}
+		}
+		else{
+			if (y > pacMan.y) {
+				switch(solution){
+				case 0: ghost1.direction = 0; break;
+				case 1: ghost1.direction = 3; break;
+				}
+			}
+			else{
+				switch(solution){
+				case 0: ghost1.direction = 2; break;
+				case 1: ghost1.direction = 3; break;
+				}
+			}
+		}
+	}
+
+
+
+
+
+
+	/*
+	//----Если пакмен левее
+	if (x >= pacMan.x){
+		//----Пакмен выше
+		if (y >= pacMan.y){
+			cout << "left up" << endl;
+			//----Стремиться в левый вехний угол
+			int solution = ofRandom(2);
+			//---только сверху свободно
+			if (left == 1 && up != 1) ghost1.direction = 0;
+			//--только слева свободно
+			if (left != 1 && up == 1) ghost1.direction = 1;
+			//---сверху и слева свободно - выбираем случайную сторону
+			if (left != 1 && up != 1){
+				switch(solution){
+				case 0: ghost1.direction = 0; break;
+				case 1: ghost1.direction = 1; break;
+				}
+			}
+			//---сверху и слева занято, двигаться в другую сторону
+			if (left == 1 && up == 1){
+				switch(solution){
+				case 0: ghost1.direction = 2; break;
+				case 1: ghost1.direction = 3; break;
+				}
+			}
+		}
+		//--Пакман ниже
+		else if (y < pacMan.y){
+			cout << "left down" << endl;
+			//---стремиться в нижний левый угол
+			int solution = ofRandom(2);
+			//--только снизу свободно
+			if (left == 1 && down != 1) ghost1.direction = 2;
+			//--только слева свободно
+			if (left != 1 && down == 1) ghost1.direction = 1;
+			//---снизу и слева свободно - выбираем случайную сторону
+			if (left != 1 && down != 1){
+				switch(solution){
+				case 0: ghost1.direction = 1; break;
+				case 1: ghost1.direction = 2; break;
+				}
+			}
+			//---снизу и слева занято, двигаться в другую сторону
+			if (left == 1 && down == 1){
+				switch(solution){
+				case 0: ghost1.direction = 0; break;
+				case 1: ghost1.direction = 3; break;
+				}
+			}
+		}
+	}*/
 
 }
