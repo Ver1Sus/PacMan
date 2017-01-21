@@ -42,6 +42,10 @@ public:
 
 	bool scoreOnWay;
 
+	int *testLives;
+	void moves(int test[64][64]);
+
+
 };
 
 class ScorePoint{

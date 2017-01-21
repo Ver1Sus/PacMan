@@ -19,7 +19,7 @@ void ofApp::setup(){
 	pacMan.score	=  0; //---»значальное количество очков
 	pacMan.lives	=  3; //--»значальное количество жизней
 
-
+	ghost1.testLives = &gameSpeed;
 
 
 	loadMapToField(); //--------загрузить карту в массив field
@@ -318,7 +318,10 @@ void ofApp::keyPressed(int key){
 		ghost1.direction = 3;
 	}
 
-
+	//-»спользуетс€ указатель чтобы увличить скорость
+	if (key == 'e'){
+		*ghost1.testLives += 2;
+	}
 }
 
 //--------------------------------------------------------------
@@ -1061,5 +1064,11 @@ void ofApp::ghostChangeDirection(int x, int y){
 			}
 		}
 	}*/
+
+}
+
+
+void Ghost::moves(int test[64][64]){
+	test[1][1] = '1';
 
 }
